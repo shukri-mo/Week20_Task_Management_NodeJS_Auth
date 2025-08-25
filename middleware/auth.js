@@ -7,13 +7,29 @@ export const authenticateToken = async (req, res, next) => {
   try {
     // TODO: Implement the authentication middleware
     // 1. Get the token from the request header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
     // 2. Verify the token
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded) {
+      throw new Error("Invalid token");
+    }
+
     // 3. Get the user from the database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+    });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
     // 4. If the user doesn't exist, throw an error
     // 5. Attach the user to the request object
     // 6. Call the next middleware
 
-    
+    req.user = user;
+    next();
     
   } catch (error) {
     if (error.name === "JsonWebTokenError") {
