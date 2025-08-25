@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import { authenticateToken } from "../middleware/auth.js";
-
+import crypto from "crypto"
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
@@ -40,10 +40,15 @@ router.post("/register", async (req, res) => {
         password: hashedPassword,
       },
     });
+
+    
     // 4. Create the user
     // 5. Generate a JWT token
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
 
+// generate verification token
+
+const verificationToken = crypto.randomBytes(32).toString("hex");
     // 6. Return the user data and token
     res.status(201).json({
       success: true,
@@ -52,10 +57,12 @@ router.post("/register", async (req, res) => {
           id: user.id,
           name: user.name,
           email: user.email,
+          verificationToken: verificationToken,
         },
         token,
       },
     });
+    console.log(`Verification link: http://localhost:5000/api/verify/${verificationToken}`);
 
   } catch (error) {
     console.error("Registration error:", error);
@@ -144,5 +151,46 @@ router.get("/me", authenticateToken, async (req, res) => {
     });
   }
 });
+
+//verification endpoint
+
+router.get("/verify/:token", async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    // Find the user with the given verification token
+    const user = await prisma.user.findUnique({
+      where: { verificationToken: token },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid verification token",
+      });
+    }
+
+    // Verify the user
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isVerified: true, verificationToken: null },
+    });
+
+    res.json({
+      success: true,
+      message: "User verified successfully",
+    });
+  } catch (error) {
+    console.error("Verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error verifying user",
+      error: error.message,
+    });
+  }
+});
+
+
+
 
 export default router;
