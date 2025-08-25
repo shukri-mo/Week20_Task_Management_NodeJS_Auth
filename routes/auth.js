@@ -12,13 +12,50 @@ router.post("/register", async (req, res) => {
   try {
     // TODO: Implement the registration logic
     // 1. Validate the input
+    const { name, email, password } = req.body;
     // 2. Check if the user already exists
+    if(!email || !password || !name) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required fields",
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
+
     // 3. Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+      },
+    });
     // 4. Create the user
     // 5. Generate a JWT token
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
+
     // 6. Return the user data and token
-
-
+    res.status(201).json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+        token,
+      },
+    });
 
   } catch (error) {
     console.error("Registration error:", error);
@@ -35,12 +72,49 @@ router.post("/login", async (req, res) => {
   try {
     // TODO: Implement the login logic
     // 1. Validate the input
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all required fields",
+      });
+    }
+
     // 2. Check if the user exists
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
     // 3. Compare the password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
     // 4. Generate a JWT token
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
+
     // 5. Return the user data and token
-    
-    
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+        token,
+      },
+    });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
